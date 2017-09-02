@@ -2,3 +2,4 @@ Django
 xmltodict
 pythonwhois
 python-dateutil
+json2html

@@ -23,7 +23,7 @@ class TopLevelDomainAdmin(admin.ModelAdmin):
     get_children.short_description = "Subdomains"
 
 class WhoisServernAdmin(admin.ModelAdmin):
-    search_fields = ['tld__name']
+    search_fields = ['host','tld__name']
     list_display = ["host",'get_tld',"queryFormat","availablePattern","errorPattern"]
     def get_tld(self, obj):
         return ", ".join([s.name for s in obj.tld.all() ])
@@ -33,7 +33,7 @@ class WhoisServernAdmin(admin.ModelAdmin):
 
 import datetime
 class DomainAdmin(admin.ModelAdmin):
-    list_display = ["name", "registered","expired","days_remain"]
+    list_display = ["name", "registered","expired","days_remain",'whois']
 
     def days_remain(self,obj):
         try:
@@ -46,6 +46,8 @@ class DomainAdmin(admin.ModelAdmin):
         except Exception as e:
             output = str(e)
         return output
+
+
 
 
 admin.site.register(TopLevelDomain, TopLevelDomainAdmin)

@@ -1,9 +1,11 @@
-from .models import TopLevelDomain,WhoisServer
+from .models import TopLevelDomain,WhoisServer,Domain
 import json
 import dateutil.parser
 from django.db.models.functions import Length
 import xmltodict
 import socket
+import pythonwhois
+
 
 TLD_FIELDS_MAP =  {
     '@name':"name",
@@ -147,30 +149,25 @@ def get_ws():
                         ws.append(p.get('@host'))
     return ws
 
-
-def get_whois_for_domain(domain):
+def get_whois_servers_for_domain(domain):
     splitted = domain.split('.')
     variants = ['.'.join(splitted[i:]) for i in range(len(splitted))] # a.b.c.d.e -> ['a.b.c.d.e','b.c.d.e','c.d.e','d.e','e']
     q = TopLevelDomain.objects.filter(name__in=variants).order_by(Length('name').asc())
     assert q.count(), "Not valid domain name"
     sub = q.last() # the longest subdomain
     if sub.whois.count():
-        return sub.whois.first()
+        return sub.whois.all()
     elif sub.parent:
-        return sub.parent.whois.first()
-    return None
+        return sub.parent.whois.all()
+    return []
 
 
-
-
-def perform_whois_query(domain):
-    ws =  get_whois_for_domain(domain)
-    query = domain
-    if ws.queryFormat:
-        query = ws.queryFormat % domain
-    server  = ws.host
+def run_whois_query(domain_name, whois_server, query_format=None):
+    query = domain_name
+    if query_format:
+        query = query_format % domain_name
     s = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
-    s.connect((server, 43))
+    s.connect((whois_server, 43))
     s.send(query + "\r\n")
     response = ""
     while True:
@@ -182,3 +179,49 @@ def perform_whois_query(domain):
     return response
 
 
+
+def get_whois_data(domain_name):
+    """
+    :param domain_name:
+    :param ws:
+    :return:
+    # GOOD, REGISTERED: {'raw':...,'parsed':...}
+    # GOOD, UNREGISTERED {'free' :True} (error pattern found in raw response) }
+    # UNKNOWN: [{'whois1.registar1.com': {'raw':...,'parsed':...}, 'whois2.registar2.com': {'raw':...,'parsed':...}]
+    """
+    print "get_whois_data started", domain_name
+    d, created = Domain.objects.get_or_create(name=domain_name)
+    if d.whois:
+        print "whois_servers for domain", d.whois
+        raw = run_whois_query(d.name, d.whois.host, d.whois.queryFormat)
+        parsed = pythonwhois.parse.parse_raw_whois([raw])
+        return dict(raw=raw,parsed=parsed)
+
+    whois_servers = get_whois_servers_for_domain(domain_name)
+
+    print "whois_servers for domain", whois_servers
+    responses = {}
+    for ws in whois_servers:
+        print "checking for", ws
+        raw = run_whois_query(d.name, ws.host, ws.queryFormat)
+        if ws.errorPattern and   ws.errorPattern.replace('\Q','').replace('\E','').lower() in raw.lower():
+            print "error pattern found",  ws.errorPattern, raw
+            return {"free":True, "raw" :raw }
+            #free for regitration
+
+        parsed = pythonwhois.parse.parse_raw_whois([raw])
+        if parsed.get('whois_server'):
+            print  "New server found", parsed.get('whois_server')
+            next_server_host = parsed.get('whois_server')[0].lower()
+            if next_server_host == "gandi.net": # .ninja fix for whois.donut.com response
+                next_server_host = "whois.gandi.net"
+            if next_server_host != ws.host:
+                next_server, created = WhoisServer.objects.get_or_create(host=next_server_host)
+                d.whois = next_server
+                d.save()
+                return get_whois_data(d.name)
+        if parsed.get('expiration_date'): # good enought
+            ws.domains.add(d)
+            return dict(raw=raw,parsed=parsed)
+        responses[ws.host] = dict(raw=raw,parsed=parsed) # TODO: compare and get better response
+    return responses
