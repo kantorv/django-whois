@@ -102,7 +102,6 @@ def parse_data():
     records =  data.get('domainList').get('domain')
     for entry in records:
         handle_entry(entry)
-
     print "[parse_data] Finished"
 
 

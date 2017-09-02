@@ -16,7 +16,7 @@ class Home(View):
         if query:
             query = query.strip()
             try:
-                resp = get_whois_data(query)
+                    resp = get_whois_data(query)
             except Exception as e:
                 error = str(e)
 
