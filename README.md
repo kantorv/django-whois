@@ -43,6 +43,6 @@ All root domain names and whois-servers are stored in the db, so it helps reduce
 * MIT
 
 # Donatations
-* Please provide your/company.organization name, (and link if needed), otherwise it will be listed as anonimous donatation 
+* Please provide your/company/organization name, (and link if needed), otherwise it will be listed as anonimous donatation 
 
 [![paypal](https://www.paypalobjects.com/en_US/i/btn/btn_donateCC_LG.gif)](https://www.paypal.com/cgi-bin/webscr?cmd=_s-xclick&hosted_button_id=EVKMDKQT2WFHG)
